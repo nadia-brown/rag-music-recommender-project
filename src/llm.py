@@ -233,6 +233,38 @@ def ground(picks, candidates):
     return out
 
 
+# How far a quoted number may be from the data and still count as correct.
+# Candidates are sent to Claude rounded to 2 decimals.
+FACT_TOLERANCE = {"tempo": 1.0, "loudness": 0.1}
+_NUMBER = r"(\d+(?:\.\d+)?)"
+_SIGNED = r"(-?\d+(?:\.\d+)?)"  # only loudness is negative; "120-140 BPM" is a range
+
+
+def check_reason(reason, song):
+    """Fact-check the numbers Claude quotes in one explanation.
+
+    Finds claims like "energy (0.14)", "loudness -19.05" or "100 BPM" and
+    compares each to the song's real value. Returns (checked, wrong), where
+    wrong is a list of (feature, claimed, actual). Claims without a number
+    ("low energy") can't be checked and are ignored.
+    """
+    claims = []
+    for feat in UNIT_FEATURES + list(RANGES):
+        number = _SIGNED if feat == "loudness" else _NUMBER
+        pattern = feat + r"\s*(?:of\s*|is\s*|at\s*|=\s*|:\s*)?\(?\s*" + number
+        for m in re.finditer(pattern, reason, re.IGNORECASE):
+            claims.append((feat, float(m.group(1))))
+    for m in re.finditer(_NUMBER + r"\s*BPM", reason, re.IGNORECASE):
+        claims.append(("tempo", float(m.group(1))))
+
+    wrong = []
+    for feat, claimed in claims:
+        actual = float(song[feat])
+        if abs(claimed - actual) > FACT_TOLERANCE.get(feat, 0.01):
+            wrong.append((feat, claimed, round(actual, 2)))
+    return len(claims), wrong
+
+
 def _fallback_picks(candidates):
     return [
         {"track_id": tid, "reason": FALLBACK_REASON, "fallback": True}

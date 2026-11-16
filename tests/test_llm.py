@@ -141,3 +141,35 @@ def test_missing_api_key_raises_clear_error(monkeypatch):
 def test_parse_request_refusal_falls_back(monkeypatch):
     use_fake(monkeypatch, reply={"energy": 0.9}, stop_reason="refusal")
     assert llm.parse_request("anything", GENRES) == {}
+
+
+# ---------- fact-checking explanations ----------
+
+SONG = {"energy": 0.14, "instrumentalness": 0.91, "valence": 0.61,
+        "danceability": 0.5, "acousticness": 0.99, "speechiness": 0.04,
+        "tempo": 100.2, "loudness": -19.05}
+
+
+def test_check_reason_accepts_correct_numbers():
+    reason = ("Very low energy (0.14), high instrumentalness (0.91), "
+              "loudness -19.05 and a steady 100 BPM tempo.")
+    checked, wrong = llm.check_reason(reason, SONG)
+    assert checked == 4
+    assert wrong == []
+
+
+def test_check_reason_flags_wrong_numbers():
+    checked, wrong = llm.check_reason("High energy (0.9) at 140 BPM.", SONG)
+    assert checked == 2
+    assert ("energy", 0.9, 0.14) in wrong
+    assert ("tempo", 140.0, 100.2) in wrong
+
+
+def test_check_reason_ignores_claims_without_numbers():
+    assert llm.check_reason("Calm, low energy and very acoustic.", SONG) == (0, [])
+
+
+def test_check_reason_reads_tempo_ranges_as_positive():
+    checked, wrong = llm.check_reason("Its 100 BPM sits in the 90-100 BPM range.", SONG)
+    assert checked == 2
+    assert wrong == []

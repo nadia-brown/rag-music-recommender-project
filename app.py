@@ -45,7 +45,7 @@ def update_taste(row: int, liked: bool):
 
 
 # ---------- 3. UI: request form ----------
-st.title("🎵 Music Recommender")
+st.title("🎵 Vector Vibe")
 st.caption("Describe what you want to hear. Like or skip songs to tune your taste profile.")
 
 with st.sidebar:
